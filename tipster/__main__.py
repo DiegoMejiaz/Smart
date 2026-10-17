@@ -28,8 +28,17 @@ def main() -> int:
 
     try:
         settings = get_settings()
-    except (ValidationError, SettingsError) as exc:
-        print(f"Configuración inválida, revisa tu .env:\n{exc}", file=sys.stderr)
+    except ValidationError as exc:
+        # Sin valores de entrada: nunca imprimir tokens/claves en los logs.
+        lines = []
+        for err in exc.errors(include_input=False, include_url=False):
+            field = ".".join(str(p) for p in err["loc"]).upper()
+            msg = "falta la variable" if err["type"] == "missing" else err["msg"]
+            lines.append(f"  - {field}: {msg}")
+        print("Configuración inválida, revisa tus variables de entorno:\n" + "\n".join(lines), file=sys.stderr)
+        return 2
+    except SettingsError as exc:
+        print(f"Configuración inválida: {exc}", file=sys.stderr)
         return 2
     if args.dry_run:
         settings.telegram_dry_run = True

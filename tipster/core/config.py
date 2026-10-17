@@ -88,6 +88,31 @@ class Settings(BaseSettings):
                 raise ValueError(f"lista JSON inválida: {exc}") from exc
         return [item.strip().strip('"\'') for item in v.split(",") if item.strip()]
 
+    @field_validator("telegram_bot_token", "telegram_channel_id", "anthropic_api_key",
+                     "odds_api_key", "api_football_key", mode="before")
+    @classmethod
+    def _clean_secret(cls, v: object) -> object:
+        """Quita espacios, saltos de línea y comillas que se cuelan al copiar/pegar."""
+        if not isinstance(v, str):
+            return v
+        v = v.strip().strip('"\'').strip()
+        return v or None
+
+    @field_validator("telegram_bot_token")
+    @classmethod
+    def _check_bot_token(cls, v: str) -> str:
+        if v.lower().startswith("bot") and ":" in v[3:]:
+            v = v[3:]  # "bot123:ABC" -> "123:ABC"
+        if v.startswith("https://") or "api.telegram.org" in v:
+            raise ValueError("pega solo el token (123456789:AAH...), no la URL de la API")
+        bot_id, _, secret = v.partition(":")
+        if not bot_id.isdigit() or len(secret) < 30 or any(c.isspace() for c in v):
+            raise ValueError(
+                f"formato inválido (longitud {len(v)}). Debe ser 'números:letras', "
+                "p.ej. 123456789:AAH... — cópialo de nuevo desde @BotFather (/mybots → API Token)"
+            )
+        return v
+
     @field_validator("betano_base_url")
     @classmethod
     def _strip_slash(cls, v: str) -> str:

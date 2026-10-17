@@ -26,7 +26,11 @@ class TelegramPublisher:
             log.info("Telegram conectado como @%s -> canal %s", me.username, self.channel_id)
             return True
         except TelegramError as exc:
-            log.error("Token de Telegram inválido o sin red: %s", exc)
+            hint = ""
+            if "not found" in str(exc).lower() or "unauthorized" in str(exc).lower():
+                hint = (" -> Telegram no reconoce este token: cópialo de nuevo desde @BotFather "
+                        "(/mybots → tu bot → API Token) o genera uno nuevo con /revoke")
+            log.error("Token de Telegram inválido o sin red: %s%s", exc, hint)
             return False
 
     async def send(self, text: str) -> bool:
