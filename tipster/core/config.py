@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     betano_sports: StrList = ["futbol", "baloncesto", "tenis"]
     betano_league_paths: StrList = []  # rutas opcionales p.ej. "/sport/futbol/espana/laliga/5/"
     betano_use_browser_fallback: bool = False  # Playwright si la API JSON bloquea
+    betano_max_leagues: int = 5  # ligas destacadas a revisar por deporte (cada una = 1 petición)
 
     # --- Validación de mercado / estadísticas ---
     odds_api_key: str | None = None  # https://the-odds-api.com (cuotas de referencia)

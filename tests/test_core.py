@@ -176,3 +176,33 @@ def test_betano_parser_accepts_alternative_field_names():
     }]}]}
     events = _scraper().parse_payload(payload)
     assert len(events) == 1 and events[0].market(MarketType.MATCH_WINNER) is not None
+
+
+async def test_betano_follows_top_leagues_from_navigation_page():
+    from tipster.scrapers import betano as bt
+
+    bt._LEAGUE_CACHE.clear()
+    nav = {"data": {"regionGroups": [], "topLeagues": [
+        {"id": 5, "name": "LaLiga", "url": "/sport/futbol/espana/laliga/5/"},
+        {"id": 1, "name": "Premier", "url": "https://www.betano.pe/sport/futbol/inglaterra/premier-league/1/"},
+    ]}}
+    pages = {"/sport/futbol/": nav,
+             "/sport/futbol/espana/laliga/5/": FIXTURE,
+             "/sport/futbol/inglaterra/premier-league/1/": {"data": {}}}
+    scraper = BetanoScraper(http=None, base_url="https://www.betano.pe", sports=["futbol"],  # type: ignore[arg-type]
+                            hours_ahead=10**7)
+    calls = []
+
+    async def fake_fetch(path):
+        calls.append(path)
+        return pages[path]
+
+    scraper._fetch_page_state = fake_fetch  # type: ignore[method-assign]
+    events = await scraper.fetch_events()
+    assert calls == list(pages)
+    assert {e.name for e in events} == {"Real Madrid vs Getafe", "Boston Celtics vs Miami Heat"}
+
+    # Segundo ciclo: la portada sale de caché (sin petición extra).
+    calls.clear()
+    await scraper.fetch_events()
+    assert calls == ["/sport/futbol/espana/laliga/5/", "/sport/futbol/inglaterra/premier-league/1/"]

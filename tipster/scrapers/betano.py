@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterator
@@ -89,8 +90,10 @@ class BetanoScraper(OddsProvider):
         league_paths: list[str] | None = None,
         hours_ahead: int = 36,
         use_browser_fallback: bool = False,
+        max_leagues: int = 5,
     ) -> None:
         self.http = http
+        self.max_leagues = max_leagues
         self.base_url = base_url.rstrip("/")
         self.sports = sports
         self.league_paths = league_paths or []
@@ -105,19 +108,43 @@ class BetanoScraper(OddsProvider):
 
     async def fetch_events(self) -> list[Event]:
         events: dict[str, Event] = {}
-        for path in self._page_paths():
+        pending = self._page_paths()
+        visited: set[str] = set()
+        while pending:
+            path = pending.pop(0)
+            if path in visited:
+                continue
+            visited.add(path)
+            sport = _sport_from_path(path) or Sport.OTHER
+
+            # La portada de un deporte es un menú: se reutiliza su lista de ligas (24h)
+            # para no gastar una petición por ciclo.
+            cached = _LEAGUE_CACHE.get(path)
+            if cached and time.monotonic() - cached[0] < LEAGUE_CACHE_TTL:
+                pending.extend(p for p in cached[1] if p not in visited)
+                continue
+
             try:
                 payload = await self._fetch_page_state(path)
             except FetchError as exc:
                 log.error("Betano: no se pudo extraer %s: %s", path, exc)
                 continue
-            parsed = self.parse_payload(payload, default_sport=_sport_from_path(path))
-            log.info("Betano %s: %d eventos parseados", path, len(parsed))
-            if not parsed:
+            parsed = self.parse_payload(payload, default_sport=sport)
+            if parsed:
+                log.info("Betano %s: %d eventos parseados", path, len(parsed))
+                for ev in parsed:
+                    events.setdefault(ev.event_id, ev)
+                continue
+
+            leagues = extract_top_league_paths(payload, self.base_url)[: self.max_leagues]
+            if leagues:
+                _LEAGUE_CACHE[path] = (time.monotonic(), leagues)
+                log.info("Betano %s: página de navegación; siguiendo %d ligas destacadas: %s",
+                         path, len(leagues), ", ".join(leagues))
+                pending.extend(p for p in leagues if p not in visited)
+            else:
                 log.warning("Betano %s: estructura no reconocida. Resumen para diagnóstico:\n%s",
                             path, describe_payload(payload))
-            for ev in parsed:
-                events.setdefault(ev.event_id, ev)
 
         horizon = datetime.now(timezone.utc) + timedelta(hours=self.hours_ahead)
         result = [e for e in events.values() if e.start_time <= horizon]
@@ -239,6 +266,28 @@ def extract_initial_state(html: str) -> Any | None:
     except json.JSONDecodeError as exc:
         log.warning("initial_state no es JSON válido: %s", exc)
         return None
+
+
+LEAGUE_CACHE_TTL = 24 * 3600
+_LEAGUE_CACHE: dict[str, tuple[float, list[str]]] = {}
+
+
+def extract_top_league_paths(payload: Any, base_url: str = "") -> list[str]:
+    """Rutas de las ligas destacadas (``topLeagues``) de una portada de deporte."""
+    data = payload.get("data", payload) if isinstance(payload, dict) else {}
+    leagues = data.get("topLeagues") if isinstance(data, dict) else None
+    if not isinstance(leagues, list):
+        return []
+    paths = []
+    for lg in leagues:
+        url = lg.get("url") if isinstance(lg, dict) else None
+        if not url:
+            continue
+        if url.startswith("http"):
+            url = url.replace(base_url, "", 1) if base_url and url.startswith(base_url) else ""
+        if url.startswith("/") and url not in paths:
+            paths.append(url)
+    return paths
 
 
 def _first_list(d: dict[str, Any], keys: tuple[str, ...]) -> list[Any]:

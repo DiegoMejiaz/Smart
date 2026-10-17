@@ -90,7 +90,8 @@ class TipsterAgent:
                               self.s.request_max_retries, self.s.min_request_delay, self.s.max_request_delay,
                               self.s.scrape_do_token, self.s.scrape_do_geo, self.s.scrape_do_super) as http:
             betano = BetanoScraper(http, self.s.betano_base_url, self.s.betano_sports, self.s.betano_league_paths,
-                                   self.s.hours_ahead, self.s.betano_use_browser_fallback)
+                                   self.s.hours_ahead, self.s.betano_use_browser_fallback,
+                                   self.s.betano_max_leagues)
             events = await betano.fetch_events()
             if not events:
                 log.warning("Betano no devolvió eventos: posible bloqueo o cambio de estructura")
