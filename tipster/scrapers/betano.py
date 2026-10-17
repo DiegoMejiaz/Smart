@@ -71,6 +71,10 @@ MARKET_NAME_PATTERNS: list[tuple[re.Pattern[str], MarketType]] = [
 ]
 # Mercados de periodo/parciales que NO queremos (1ª parte, cuartos, sets...).
 EXCLUDED_MARKET_RE = re.compile(r"1[ªa°]? ?(parte|mitad|tiempo|cuarto|set)|2[ªa°]? ?(parte|mitad|tiempo)|primer|segundo|half|quarter|set \d|córner|corner|tarjeta|card", re.I)
+# Nombres alternativos de campos vistos en distintas versiones del frontend.
+TIME_KEYS = ("startTime", "startTimeUtc", "startDate", "start", "kickOffTime", "date")
+MARKET_KEYS = ("markets", "mainMarkets", "marketGroups")
+SELECTION_KEYS = ("selections", "outcomes", "odds")
 NUM_RE = re.compile(r"[-+]?\d+(?:[.,]\d+)?")
 
 
@@ -109,6 +113,9 @@ class BetanoScraper(OddsProvider):
                 continue
             parsed = self.parse_payload(payload, default_sport=_sport_from_path(path))
             log.info("Betano %s: %d eventos parseados", path, len(parsed))
+            if not parsed:
+                log.warning("Betano %s: estructura no reconocida. Resumen para diagnóstico:\n%s",
+                            path, describe_payload(payload))
             for ev in parsed:
                 events.setdefault(ev.event_id, ev)
 
@@ -169,7 +176,7 @@ class BetanoScraper(OddsProvider):
         if not home or not away:
             return None
 
-        start = _parse_time(raw.get("startTime"))
+        start = _parse_time(next((raw[k] for k in TIME_KEYS if raw.get(k) is not None), None))
         if start is None or start < datetime.now(timezone.utc):
             return None
 
@@ -179,7 +186,7 @@ class BetanoScraper(OddsProvider):
         ) or "Desconocida"
 
         markets: list[Market] = []
-        for m in raw.get("markets") or []:
+        for m in _first_list(raw, MARKET_KEYS):
             markets.extend(self._parse_market(m, home, away, sport))
 
         url = raw.get("url")
@@ -206,7 +213,7 @@ class BetanoScraper(OddsProvider):
             return []
 
         by_line: dict[float | None, list[Selection]] = defaultdict(list)
-        for s in m.get("selections") or []:
+        for s in _first_list(m, SELECTION_KEYS):
             sel = _parse_selection(s, mtype, home, away, m.get("handicap"))
             if sel is not None:
                 by_line[sel.line if mtype in (MarketType.TOTALS, MarketType.HANDICAP) else None].append(sel)
@@ -234,13 +241,48 @@ def extract_initial_state(html: str) -> Any | None:
         return None
 
 
+def _first_list(d: dict[str, Any], keys: tuple[str, ...]) -> list[Any]:
+    for k in keys:
+        if isinstance(d.get(k), list):
+            return d[k]
+    return []
+
+
+def describe_payload(payload: Any, max_chars: int = 1800) -> str:
+    """Resumen compacto de la forma del JSON (claves y ejemplos) para ajustar el parser."""
+    lines: list[str] = []
+    if isinstance(payload, dict):
+        lines.append(f"tipo=dict claves={list(payload)[:25]}")
+    elif isinstance(payload, list):
+        lines.append(f"tipo=list len={len(payload)}")
+    else:
+        lines.append(f"tipo={type(payload).__name__} inicio={str(payload)[:300]!r}")
+
+    # Rutas a listas de dicts y las claves de su primer elemento (lo que suele ser eventos/mercados).
+    seen = 0
+    stack: list[tuple[str, Any]] = [("$", payload)]
+    while stack and seen < 15:
+        path, node = stack.pop()
+        if isinstance(node, dict):
+            for k, v in list(node.items())[:40]:
+                stack.append((f"{path}.{k}", v))
+        elif isinstance(node, list) and node:
+            first = node[0]
+            if isinstance(first, dict):
+                lines.append(f"{path}[{len(node)}] -> claves {list(first)[:20]}")
+                seen += 1
+                stack.append((f"{path}[0]", first))
+    text = "\n".join(lines)
+    return text[:max_chars]
+
+
 def _iter_event_dicts(node: Any) -> Iterator[dict[str, Any]]:
     """Recorre el JSON y produce cualquier dict con forma de evento."""
     stack = [node]
     while stack:
         cur = stack.pop()
         if isinstance(cur, dict):
-            if isinstance(cur.get("markets"), list) and "startTime" in cur:
+            if any(isinstance(cur.get(k), list) for k in MARKET_KEYS) and any(k in cur for k in TIME_KEYS):
                 yield cur
                 continue
             stack.extend(cur.values())
@@ -292,7 +334,7 @@ def _to_float(value: Any) -> float | None:
 
 
 def _parse_selection(s: dict[str, Any], mtype: MarketType, home: str, away: str, market_handicap: Any) -> Selection | None:
-    odds = _to_float(s.get("price") or s.get("odds") or s.get("decimal"))
+    odds = _to_float(s.get("price") or s.get("odds") or s.get("decimal") or s.get("odd") or s.get("value"))
     if odds is None or odds <= 1.0:
         return None
     label = str(s.get("name") or s.get("fullName") or "").strip()

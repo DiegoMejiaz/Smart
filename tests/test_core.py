@@ -165,3 +165,14 @@ def test_list_settings_accept_json_csv_or_empty(monkeypatch, raw, expected):
 
     monkeypatch.setenv("PROXIES", raw)
     assert Settings(_env_file=None).proxies == expected
+
+
+def test_betano_parser_accepts_alternative_field_names():
+    payload = {"widgets": [{"items": [{
+        "id": 1, "startDate": "2100-01-01T18:00:00Z", "sportId": "FOOT",
+        "participants": [{"name": "A"}, {"name": "B"}],
+        "mainMarkets": [{"name": "Resultado Final", "outcomes": [
+            {"name": "1", "odd": 2.1}, {"name": "X", "odd": 3.2}, {"name": "2", "odd": 3.4}]}],
+    }]}]}
+    events = _scraper().parse_payload(payload)
+    assert len(events) == 1 and events[0].market(MarketType.MATCH_WINNER) is not None
