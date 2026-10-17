@@ -17,6 +17,12 @@ from tipster.scrapers.http_client import FetchError, HttpClient
 log = logging.getLogger(__name__)
 
 BASE = "https://v3.football.api-sports.io"
+PLAN_BLOCK_SECONDS = 24 * 3600
+_disabled_until = 0.0  # compartido entre ciclos: evita gastar cuota si el plan no sirve
+
+
+class PlanLimitError(FetchError):
+    """El plan de API-Football no cubre lo pedido (temporada, cuota diaria...)."""
 
 
 @dataclass
@@ -101,13 +107,24 @@ class FootballStatsProvider:
         if hit and time.monotonic() - hit[0] < self.cache_ttl:
             return hit[1]
         data = await self.http.get(f"{BASE}{path}", params=params, headers=self.headers, throttle=False)
-        if data.get("errors"):
-            raise FetchError(f"API-Football {path}: {data['errors']}")
+        errors = data.get("errors")
+        if errors:
+            text = str(errors)
+            if isinstance(errors, dict) and ("plan" in errors or "requests" in errors):
+                raise PlanLimitError(text)
+            raise FetchError(f"API-Football {path}: {text}")
         resp = data.get("response", [])
         self._cache[key] = (time.monotonic(), resp)
         return resp
 
+    @staticmethod
+    def available() -> bool:
+        return time.monotonic() >= _disabled_until
+
     async def get_match_stats(self, event: Event) -> FootballMatchStats | None:
+        global _disabled_until
+        if not self.available():
+            return None
         try:
             fixture = await self._find_fixture(event)
             if fixture is None:
@@ -121,6 +138,11 @@ class FootballStatsProvider:
             await self._injuries(fixture["fixture"]["id"], home, away, home_t["id"])
             h2h = await self._h2h(home_t["id"], away_t["id"])
             return FootballMatchStats(home=home, away=away, h2h=h2h, league_name=fixture["league"]["name"])
+        except PlanLimitError as exc:
+            _disabled_until = time.monotonic() + PLAN_BLOCK_SECONDS
+            log.warning("API-Football desactivado 24h: tu plan no lo permite (%s). El agente sigue "
+                        "usando solo el mercado de referencia. Con un plan de pago se activa solo.", exc)
+            return None
         except (FetchError, KeyError, TypeError, ValueError) as exc:
             log.warning("API-Football: error obteniendo stats de %s: %s", event.name, exc)
             return None

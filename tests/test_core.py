@@ -206,3 +206,22 @@ async def test_betano_follows_top_leagues_from_navigation_page():
     calls.clear()
     await scraper.fetch_events()
     assert calls == ["/sport/futbol/espana/laliga/5/", "/sport/futbol/inglaterra/premier-league/1/"]
+
+
+async def test_api_football_plan_error_disables_provider():
+    from tipster.stats import football as fb
+
+    class FakeHttp:
+        calls = 0
+
+        async def get(self, *a, **k):
+            FakeHttp.calls += 1
+            return {"errors": {"plan": "Free plans do not have access to this season"}, "response": []}
+
+    fb._disabled_until = 0.0
+    provider = fb.FootballStatsProvider(FakeHttp(), "key")  # type: ignore[arg-type]
+    ev = _event("betano", "Real Madrid", "Getafe", [])
+    assert await provider.get_match_stats(ev) is None
+    assert await provider.get_match_stats(ev) is None
+    assert FakeHttp.calls == 1  # el segundo partido ya no gasta cuota
+    fb._disabled_until = 0.0

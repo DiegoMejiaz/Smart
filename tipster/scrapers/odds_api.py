@@ -20,7 +20,7 @@ BASE_URL = "https://api.the-odds-api.com/v4/sports/{sport}/odds"
 MARKET_MAP = {"h2h": MarketType.MATCH_WINNER, "totals": MarketType.TOTALS, "spreads": MarketType.HANDICAP}
 
 
-def _sport_from_key(key: str) -> Sport:
+def sport_from_odds_key(key: str) -> Sport:
     if key.startswith("soccer"):
         return Sport.FOOTBALL
     if key.startswith("basketball"):
@@ -85,7 +85,7 @@ class OddsApiProvider(OddsProvider):
                 events.append(Event(
                     event_id=f"{item['id']}:{bm['key']}",
                     source=f"{self.name}:{bm['key']}",
-                    sport=_sport_from_key(sport_key),
+                    sport=sport_from_odds_key(sport_key),
                     competition=item.get("sport_title", sport_key),
                     home=home, away=away, start_time=start, markets=markets,
                 ))

@@ -16,7 +16,7 @@ from tipster.notifier.formatter import format_signal
 from tipster.notifier.telegram_bot import TelegramPublisher
 from tipster.scrapers.betano import BetanoScraper
 from tipster.scrapers.http_client import HttpClient
-from tipster.scrapers.odds_api import OddsApiProvider
+from tipster.scrapers.odds_api import OddsApiProvider, sport_from_odds_key
 from tipster.stats.football import FootballStatsProvider
 from tipster.storage.db import SignalStore
 
@@ -100,7 +100,7 @@ class TipsterAgent:
             min_start = datetime.now(timezone.utc) + timedelta(minutes=self.s.min_minutes_to_start)
             events = [e for e in events if e.start_time >= min_start]
 
-            references = await self._reference_events(http)
+            references = await self._reference_events(http, {e.sport for e in events})
             stats_provider = (FootballStatsProvider(http, self.s.api_football_key)
                               if self.s.api_football_key else None)
 
@@ -120,11 +120,15 @@ class TipsterAgent:
                  time.monotonic() - cycle_start, len(events), len(candidates), len(published))
         return published
 
-    async def _reference_events(self, http: HttpClient) -> list[Event]:
+    async def _reference_events(self, http: HttpClient, sports: set[Sport]) -> list[Event]:
         if not self.s.odds_api_key:
             log.info("ODDS_API_KEY no configurada: sin validación cruzada de mercado")
             return []
-        provider = OddsApiProvider(http, self.s.odds_api_key, self.s.odds_api_sport_keys,
+        # Solo se piden deportes que Betano devolvió en este ciclo (cada liga gasta cuota).
+        sport_keys = [k for k in self.s.odds_api_sport_keys if sport_from_odds_key(k) in sports]
+        if not sport_keys:
+            return []
+        provider = OddsApiProvider(http, self.s.odds_api_key, sport_keys,
                                    self.s.odds_api_regions, self.s.odds_api_sharp_books)
         refs = await provider.fetch_events()
         log.info("Referencias de mercado: %d (partido x casa)", len(refs))
