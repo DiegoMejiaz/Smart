@@ -12,6 +12,7 @@ import logging
 import sys
 
 from pydantic import ValidationError
+from pydantic_settings import SettingsError
 
 from tipster.agent import TipsterAgent
 from tipster.core.config import get_settings
@@ -27,7 +28,7 @@ def main() -> int:
 
     try:
         settings = get_settings()
-    except ValidationError as exc:
+    except (ValidationError, SettingsError) as exc:
         print(f"Configuración inválida, revisa tu .env:\n{exc}", file=sys.stderr)
         return 2
     if args.dry_run:

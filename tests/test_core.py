@@ -150,3 +150,17 @@ def test_signal_format_is_exact():
     assert lines[8] == ""
     assert lines[9] == "📊 Justificación:"
     assert "Betano" in lines[10]
+
+
+# --------------------------------------------------------------------- config
+@pytest.mark.parametrize("raw,expected", [
+    ("", []),
+    ("http://u:p@h:1", ["http://u:p@h:1"]),
+    ("http://a:1, http://b:2", ["http://a:1", "http://b:2"]),
+    ('["http://u:p@h:1"]', ["http://u:p@h:1"]),
+])
+def test_list_settings_accept_json_csv_or_empty(monkeypatch, raw, expected):
+    from tipster.core.config import Settings
+
+    monkeypatch.setenv("PROXIES", raw)
+    assert Settings(_env_file=None).proxies == expected

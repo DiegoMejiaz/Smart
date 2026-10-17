@@ -1,10 +1,15 @@
 """Configuración central del agente, cargada desde variables de entorno / .env."""
 from __future__ import annotations
 
+import json
 from functools import lru_cache
+from typing import Annotated
 
 from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+# Listas que aceptan JSON (["a","b"]), separadas por comas (a,b) o vacías.
+StrList = Annotated[list[str], NoDecode]
 
 
 class Settings(BaseSettings):
@@ -24,15 +29,15 @@ class Settings(BaseSettings):
 
     # --- Betano ---
     betano_base_url: str = "https://www.betano.pe"  # dominio del país (.pe, .mx, .com.co, .pt, .de...)
-    betano_sports: list[str] = ["futbol", "baloncesto", "tenis"]
-    betano_league_paths: list[str] = []  # rutas opcionales p.ej. "/sport/futbol/espana/laliga/5/"
+    betano_sports: StrList = ["futbol", "baloncesto", "tenis"]
+    betano_league_paths: StrList = []  # rutas opcionales p.ej. "/sport/futbol/espana/laliga/5/"
     betano_use_browser_fallback: bool = False  # Playwright si la API JSON bloquea
 
     # --- Validación de mercado / estadísticas ---
     odds_api_key: str | None = None  # https://the-odds-api.com (cuotas de referencia)
     odds_api_regions: str = "eu"
-    odds_api_sharp_books: list[str] = ["pinnacle", "betfair_ex_eu", "matchbook"]
-    odds_api_sport_keys: list[str] = [
+    odds_api_sharp_books: StrList = ["pinnacle", "betfair_ex_eu", "matchbook"]
+    odds_api_sport_keys: StrList = [
         "soccer_epl", "soccer_spain_la_liga", "soccer_italy_serie_a",
         "soccer_germany_bundesliga", "soccer_france_ligue_one",
         "soccer_uefa_champs_league", "basketball_nba", "basketball_euroleague",
@@ -41,12 +46,12 @@ class Settings(BaseSettings):
     api_football_key: str | None = None  # https://www.api-football.com (forma, H2H, lesiones, xG)
 
     # --- Red / anti-bloqueo ---
-    proxies: list[str] = []  # http://user:pass@host:port
+    proxies: StrList = []  # http://user:pass@host:port
     request_timeout: float = 20.0
     request_max_retries: int = 4
     min_request_delay: float = 1.5
     max_request_delay: float = 4.0
-    impersonate_browsers: list[str] = ["chrome", "chrome131", "edge101", "safari17_0"]
+    impersonate_browsers: StrList = ["chrome", "chrome131", "edge101", "safari17_0"]
 
     # --- Motor de valor ---
     min_odds: float = 1.50
@@ -66,6 +71,22 @@ class Settings(BaseSettings):
     db_path: str = "data/tipster.db"
     log_level: str = "INFO"
     log_dir: str = "logs"
+
+    @field_validator("betano_sports", "betano_league_paths", "odds_api_sharp_books",
+                     "odds_api_sport_keys", "proxies", "impersonate_browsers", mode="before")
+    @classmethod
+    def _parse_list(cls, v: object) -> object:
+        if not isinstance(v, str):
+            return v
+        v = v.strip()
+        if not v:
+            return []
+        if v.startswith("["):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"lista JSON inválida: {exc}") from exc
+        return [item.strip().strip('"\'') for item in v.split(",") if item.strip()]
 
     @field_validator("betano_base_url")
     @classmethod

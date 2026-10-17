@@ -32,9 +32,17 @@ CREATE INDEX IF NOT EXISTS idx_signals_created ON signals(created_at);
 
 class SignalStore:
     def __init__(self, path: str) -> None:
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(path)
-        self.conn.executescript(SCHEMA)
+        try:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            self.conn = sqlite3.connect(path)
+            self.conn.executescript(SCHEMA)
+        except (OSError, sqlite3.Error) as exc:
+            # Mejor seguir funcionando que entrar en un bucle de reinicios; el
+            # histórico se perderá al reiniciar, por eso se avisa como ERROR.
+            log.error("No se puede escribir la base de datos en %s (%s). Usando memoria: "
+                      "revisa el volumen/permisos (en Railway: volumen en /app/data)", path, exc)
+            self.conn = sqlite3.connect(":memory:")
+            self.conn.executescript(SCHEMA)
 
     def already_sent(self, pick: Pick) -> bool:
         cur = self.conn.execute("SELECT 1 FROM signals WHERE dedupe_key = ?", (pick.dedupe_key,))
