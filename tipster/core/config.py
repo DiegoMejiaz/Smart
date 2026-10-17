@@ -88,6 +88,12 @@ class Settings(BaseSettings):
                 raise ValueError(f"lista JSON inválida: {exc}") from exc
         return [item.strip().strip('"\'') for item in v.split(",") if item.strip()]
 
+    @field_validator("proxies")
+    @classmethod
+    def _drop_placeholder_proxies(cls, v: list[str]) -> list[str]:
+        """Ignora los proxies de ejemplo de .env.example (no existen y bloquean todo)."""
+        return [p for p in v if "example.com" not in p and "user:pass@" not in p]
+
     @field_validator("telegram_bot_token", "telegram_channel_id", "anthropic_api_key",
                      "odds_api_key", "api_football_key", mode="before")
     @classmethod

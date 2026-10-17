@@ -158,6 +158,7 @@ def test_signal_format_is_exact():
     ("http://u:p@h:1", ["http://u:p@h:1"]),
     ("http://a:1, http://b:2", ["http://a:1", "http://b:2"]),
     ('["http://u:p@h:1"]', ["http://u:p@h:1"]),
+    ('["http://user:pass@proxy1.example.com:8000","http://u:p@h:1"]', ["http://u:p@h:1"]),
 ])
 def test_list_settings_accept_json_csv_or_empty(monkeypatch, raw, expected):
     from tipster.core.config import Settings
