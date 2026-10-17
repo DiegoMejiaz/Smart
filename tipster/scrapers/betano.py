@@ -121,14 +121,16 @@ class BetanoScraper(OddsProvider):
         referer = f"{self.base_url}{path}"
         # 1) API JSON interna
         try:
-            return await self.http.get(f"{self.base_url}/api{path}", params=API_QUERY, referer=referer)
+            return await self.http.get(f"{self.base_url}/api{path}", params=API_QUERY, referer=referer,
+                                       unblocker=True)
         except FetchError as exc:
             log.warning("Betano API JSON falló para %s (%s); probando HTML", path, exc)
 
         # 2) HTML con initial_state
         try:
             html = await self.http.get(
-                referer, expect_json=False, headers={"Accept": "text/html,application/xhtml+xml"}
+                referer, expect_json=False, headers={"Accept": "text/html,application/xhtml+xml"},
+                unblocker=True,
             )
             state = extract_initial_state(html)
             if state is not None:

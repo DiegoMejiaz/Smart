@@ -10,6 +10,7 @@ import itertools
 import logging
 import random
 import time
+from urllib.parse import urlencode
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -27,6 +28,7 @@ USER_AGENTS = [
 ]
 ACCEPT_LANGUAGES = ["es-PE,es;q=0.9,en;q=0.8", "es-ES,es;q=0.9", "es-MX,es;q=0.9,en-US;q=0.7", "es-419,es;q=0.9"]
 
+SCRAPE_DO_URL = "https://api.scrape.do/"
 RETRYABLE_STATUS = {403, 408, 425, 429, 500, 502, 503, 504}
 
 
@@ -91,8 +93,14 @@ class HttpClient:
         max_retries: int = 4,
         min_delay: float = 1.5,
         max_delay: float = 4.0,
+        scrape_do_token: str | None = None,
+        scrape_do_geo: str = "pe",
+        scrape_do_super: bool = True,
     ) -> None:
         self.pool = ProxyPool(proxies)
+        self.scrape_do_token = scrape_do_token
+        self.scrape_do_geo = scrape_do_geo
+        self.scrape_do_super = scrape_do_super
         self.impersonate = impersonate or ["chrome"]
         self.timeout = timeout
         self.max_retries = max_retries
@@ -141,28 +149,49 @@ class HttpClient:
         referer: str | None = None,
         expect_json: bool = True,
         throttle: bool = True,
+        unblocker: bool = False,
     ) -> Any:
+        """GET con reintentos. ``unblocker=True`` enruta por Scrape.do si hay token
+        (IP residencial del país configurado, sin proxies propios)."""
         if self._session is None:
             raise RuntimeError("HttpClient debe usarse con 'async with'")
 
+        use_scrape_do = unblocker and bool(self.scrape_do_token)
+        request_url, request_params, timeout = url, params, self.timeout
+        if use_scrape_do:
+            target = f"{url}?{urlencode(params)}" if params else url
+            request_url = SCRAPE_DO_URL
+            request_params = {
+                "token": self.scrape_do_token,
+                "url": target,  # curl_cffi lo codifica como exige Scrape.do
+                "geoCode": self.scrape_do_geo,
+                "super": "true" if self.scrape_do_super else "false",
+            }
+            timeout = max(self.timeout, 75.0)  # Scrape.do reintenta internamente hasta ~60s
+
         last_error: Exception | None = None
         for attempt in range(1, self.max_retries + 1):
-            proxy = self.pool.next()
+            proxy = ProxyState(None) if use_scrape_do else self.pool.next()
             browser = random.choice(self.impersonate)
             if throttle:
                 await self._throttle()
             started = time.monotonic()
             try:
                 resp = await self._session.get(
-                    url,
-                    params=params,
-                    headers=self._headers(referer, headers),
+                    request_url,
+                    params=request_params,
+                    headers=None if use_scrape_do else self._headers(referer, headers),
                     proxy=proxy.url,
-                    impersonate=browser,  # type: ignore[arg-type]
-                    timeout=self.timeout,
+                    impersonate=None if use_scrape_do else browser,  # type: ignore[arg-type]
+                    timeout=timeout,
                 )
                 elapsed = (time.monotonic() - started) * 1000
-                log.debug("GET %s -> %s (%.0f ms, proxy=%s, ua=%s)", url, resp.status_code, elapsed, _mask(proxy.url), browser)
+                log.debug("GET %s -> %s (%.0f ms, via=%s)", url, resp.status_code, elapsed,
+                          "scrape.do" if use_scrape_do else f"{_mask(proxy.url)}/{browser}")
+                if use_scrape_do and resp.status_code == 401:
+                    raise FetchError("Scrape.do rechazó el token (401): revisa SCRAPE_DO_TOKEN")
+                if use_scrape_do and resp.status_code == 429:
+                    log.warning("Scrape.do: límite de concurrencia o créditos agotados (429)")
 
                 if resp.status_code in RETRYABLE_STATUS:
                     last_error = FetchError(f"HTTP {resp.status_code}")

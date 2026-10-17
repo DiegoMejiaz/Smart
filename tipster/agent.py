@@ -87,7 +87,8 @@ class TipsterAgent:
             return []
 
         async with HttpClient(self.s.proxies, self.s.impersonate_browsers, self.s.request_timeout,
-                              self.s.request_max_retries, self.s.min_request_delay, self.s.max_request_delay) as http:
+                              self.s.request_max_retries, self.s.min_request_delay, self.s.max_request_delay,
+                              self.s.scrape_do_token, self.s.scrape_do_geo, self.s.scrape_do_super) as http:
             betano = BetanoScraper(http, self.s.betano_base_url, self.s.betano_sports, self.s.betano_league_paths,
                                    self.s.hours_ahead, self.s.betano_use_browser_fallback)
             events = await betano.fetch_events()

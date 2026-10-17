@@ -217,6 +217,11 @@ solapamientos.
 - Betano **geo-bloquea** por país e IPs de datacenter (devuelve una *splash screen* con HTTP 403).
   Necesitas **proxies residenciales del país** del dominio configurado (`.pe` → Perú, `.mx` → México…).
   El agente lo detecta y lo indica en el log.
+- **Alternativa sin proxies propios: [Scrape.do](https://scrape.do).** Con `SCRAPE_DO_TOKEN`
+  definido, las peticiones a Betano se envían por su API (`api.scrape.do`) con `geoCode`
+  (`SCRAPE_DO_GEO`, por defecto `pe`) e IP residencial (`SCRAPE_DO_SUPER=true`, 10 créditos por
+  petición; con `false` cuesta 1 pero suele ser bloqueado). Cada ciclo hace ~1 petición por
+  deporte en `BETANO_SPORTS`: ajusta deportes e intervalo a tus créditos.
 - Estrategia en cascada: API JSON interna (`/api/<ruta>?req=la,s,stnf,c,mb`) → HTML con
   `window["initial_state"]` → navegador headless (`BETANO_USE_BROWSER_FALLBACK=true`, requiere
   `pip install playwright && playwright install chromium`).

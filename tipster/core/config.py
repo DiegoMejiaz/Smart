@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     api_football_key: str | None = None  # https://www.api-football.com (forma, H2H, lesiones, xG)
 
     # --- Red / anti-bloqueo ---
+    scrape_do_token: str | None = None  # https://scrape.do: sustituye a los proxies para Betano
+    scrape_do_geo: str = "pe"           # país de la IP (pe, mx, co, cl, br, pt, de...)
+    scrape_do_super: bool = True        # IP residencial (necesaria contra el geo-bloqueo)
     proxies: StrList = []  # http://user:pass@host:port
     request_timeout: float = 20.0
     request_max_retries: int = 4
@@ -95,7 +98,7 @@ class Settings(BaseSettings):
         return [p for p in v if "example.com" not in p and "user:pass@" not in p]
 
     @field_validator("telegram_bot_token", "telegram_channel_id", "anthropic_api_key",
-                     "odds_api_key", "api_football_key", mode="before")
+                     "odds_api_key", "api_football_key", "scrape_do_token", mode="before")
     @classmethod
     def _clean_secret(cls, v: object) -> object:
         """Quita espacios, saltos de línea y comillas que se cuelan al copiar/pegar."""
