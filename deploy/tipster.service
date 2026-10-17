@@ -1,0 +1,17 @@
+# /etc/systemd/system/tipster.service
+[Unit]
+Description=Tipster AI - agente de value betting
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tipster
+WorkingDirectory=/opt/tipster
+EnvironmentFile=/opt/tipster/.env
+ExecStart=/opt/tipster/.venv/bin/python -m tipster
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

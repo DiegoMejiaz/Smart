@@ -1,0 +1,10 @@
+anthropic>=1.15,<2
+curl_cffi>=0.16,<1
+python-telegram-bot>=22.0,<23
+pydantic>=2.9,<3
+pydantic-settings>=2.6,<3
+python-dotenv>=1.0
+rapidfuzz>=3.10,<4
+tzdata>=2024.1
+# Opcional: fallback con navegador headless
+# playwright>=1.48

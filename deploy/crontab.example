@@ -1,0 +1,2 @@
+# Alternativa a modo bucle: un ciclo cada 10 minutos (flock evita solapamientos)
+*/10 * * * * cd /opt/tipster && /usr/bin/flock -n /tmp/tipster.lock .venv/bin/python -m tipster --once >> logs/cron.log 2>&1

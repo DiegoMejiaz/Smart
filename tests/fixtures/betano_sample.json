@@ -1,0 +1,64 @@
+{
+  "data": {
+    "blocks": [
+      {
+        "name": "LaLiga",
+        "events": [
+          {
+            "id": 70001,
+            "name": "Real Madrid - Getafe",
+            "startTime": 4102444800000,
+            "sportId": "FOOT",
+            "regionName": "España",
+            "leagueName": "LaLiga",
+            "url": "/cuotas-de-partido/real-madrid-getafe/70001/",
+            "participants": [{"name": "Real Madrid"}, {"name": "Getafe"}],
+            "markets": [
+              {"name": "Resultado Final", "type": "MRES", "selections": [
+                {"name": "1", "fullName": "Real Madrid", "price": 1.42},
+                {"name": "X", "fullName": "Empate", "price": 4.6},
+                {"name": "2", "fullName": "Getafe", "price": 8.0}
+              ]},
+              {"name": "Total de goles Más/Menos", "type": "HCTG", "selections": [
+                {"name": "Más de 2.5", "price": 1.80, "handicap": 2.5},
+                {"name": "Menos de 2.5", "price": 2.02, "handicap": 2.5},
+                {"name": "Más de 3.5", "price": 2.75, "handicap": 3.5},
+                {"name": "Menos de 3.5", "price": 1.42, "handicap": 3.5}
+              ]},
+              {"name": "Ambos equipos marcan", "type": "BTSC", "selections": [
+                {"name": "Sí", "price": 2.05},
+                {"name": "No", "price": 1.72}
+              ]},
+              {"name": "1ª Parte - Resultado", "type": "HTRS", "selections": [
+                {"name": "1", "price": 1.9}, {"name": "X", "price": 2.3}, {"name": "2", "price": 7.0}
+              ]}
+            ]
+          }
+        ]
+      },
+      {
+        "name": "NBA",
+        "events": [
+          {
+            "id": 80001,
+            "name": "Boston Celtics - Miami Heat",
+            "startTime": 4102448400000,
+            "sportId": "BASK",
+            "regionName": "EE.UU.",
+            "leagueName": "NBA",
+            "participants": [{"name": "Boston Celtics"}, {"name": "Miami Heat"}],
+            "markets": [
+              {"name": "Ganador (incl. prórroga)", "type": "H2HT", "selections": [
+                {"name": "1", "price": 1.55}, {"name": "2", "price": 2.45}
+              ]}
+            ]
+          },
+          {
+            "id": 80002, "name": "Live game", "startTime": 4102448400000, "liveNow": true,
+            "participants": [{"name": "A"}, {"name": "B"}], "markets": []
+          }
+        ]
+      }
+    ]
+  }
+}

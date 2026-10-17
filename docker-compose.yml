@@ -1,0 +1,14 @@
+services:
+  tipster:
+    build: .
+    container_name: tipster-ai
+    env_file: .env
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
