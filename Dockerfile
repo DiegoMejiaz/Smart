@@ -12,5 +12,4 @@ COPY tipster ./tipster
 RUN useradd -m -u 1000 tipster && mkdir -p /app/data /app/logs && chown -R tipster /app
 USER tipster
 
-VOLUME ["/app/data", "/app/logs"]
 CMD ["python", "-m", "tipster"]
