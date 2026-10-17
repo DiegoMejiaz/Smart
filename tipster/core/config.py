@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str = Field(..., description="Token del bot (BotFather)")
     telegram_channel_id: str = Field(..., description="@canal o id numérico (-100...)")
     telegram_dry_run: bool = False  # si True, imprime en log en vez de publicar
+    send_test_signal_on_start: bool = False  # publica una señal de ejemplo al arrancar
 
     # --- LLM (Claude) ---
     anthropic_api_key: str | None = None  # el SDK también lo lee de ANTHROPIC_API_KEY

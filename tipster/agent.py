@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from tipster.analysis.matcher import find_matches
 from tipster.analysis.value_engine import EngineConfig, ValueEngine
 from tipster.core.config import Settings
-from tipster.core.models import Event, Pick, Sport
+from tipster.core.models import Event, Evidence, Market, MarketType, Pick, Selection, Sport
 from tipster.llm.justifier import Justifier
 from tipster.notifier.formatter import format_signal
 from tipster.notifier.telegram_bot import TelegramPublisher
@@ -43,6 +43,8 @@ class TipsterAgent:
         self._install_signal_handlers()
         if not await self.publisher.check():
             raise SystemExit("No se pudo validar Telegram; revisa TELEGRAM_BOT_TOKEN")
+        if self.s.send_test_signal_on_start:
+            await self.send_test_signal()
         log.info("Agente iniciado. Intervalo: %ss | Cuotas %.2f-%.2f | EV mín %.1f%%",
                  self.s.poll_interval_seconds, self.s.min_odds, self.s.max_odds, self.s.min_edge * 100)
         while not self._stop.is_set():
@@ -66,6 +68,15 @@ class TipsterAgent:
                 loop.add_signal_handler(sig, self._stop.set)
             except NotImplementedError:  # Windows
                 pass
+
+    async def send_test_signal(self) -> bool:
+        """Publica una señal ficticia y marcada como prueba para verificar Telegram + LLM."""
+        pick = build_test_pick()
+        pick.justification = await self.justifier.justify(pick)
+        text = "🧪 MENSAJE DE PRUEBA — datos ficticios, no apostar\n\n" + format_signal(pick, self.s.timezone)
+        ok = await self.publisher.send(text)
+        log.info("Señal de prueba %s", "publicada" if ok else "NO publicada")
+        return ok
 
     # ---------------------------------------------------------------- cycle
     async def run_cycle(self) -> list[Pick]:
@@ -149,3 +160,26 @@ class TipsterAgent:
                 best_per_event[p.event.event_id] = p
         ranked = sorted(best_per_event.values(), key=lambda p: p.edge * p.model_probability, reverse=True)
         return ranked[: max(0, min(self.s.max_picks_per_cycle, remaining_today))]
+
+
+def build_test_pick() -> Pick:
+    over = Selection("over", "Más de 2.5", 1.95, 2.5)
+    market = Market(MarketType.TOTALS, "Total de goles", [over, Selection("under", "Menos de 2.5", 1.85, 2.5)], 2.5)
+    event = Event(
+        event_id="test", source="test", sport=Sport.FOOTBALL, competition="Liga de Ejemplo",
+        home="Equipo A", away="Equipo B", start_time=datetime.now(timezone.utc) + timedelta(hours=6),
+        markets=[market],
+    )
+    evidence = Evidence(
+        facts=[
+            "El mercado de referencia (pinnacle) sin margen asigna 55.0% a esta selección, frente al 51.3% implícito en la cuota de Betano",
+            "Equipo A promedia 2.10 goles a favor y 1.20 en contra como local esta temporada",
+            "Equipo B promedia 1.40 goles a favor y 1.70 en contra como visitante",
+            "Bajas de Equipo B: Defensa 1 (Lesión), Defensa 2 (Sanción)",
+        ],
+        metrics={"prob_estimada": 0.55, "prob_implicita_betano": 0.5128, "valor_esperado": 0.0725,
+                 "prob_mercado_sharp": 0.55, "calidad_datos": "datos ficticios de prueba"},
+    )
+    return Pick(event=event, market=market, selection=over, model_probability=0.55,
+                implied_probability=1 / 1.95, edge=0.0725, stake=3, pick_label="Más de 2.5 goles",
+                evidence=evidence)

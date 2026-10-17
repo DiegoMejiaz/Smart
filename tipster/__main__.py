@@ -22,6 +22,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Tipster AI - agente de value betting para Betano")
     parser.add_argument("--once", action="store_true", help="ejecuta un único ciclo y termina")
     parser.add_argument("--dry-run", action="store_true", help="no publica en Telegram")
+    parser.add_argument("--test-signal", action="store_true", help="publica una señal de prueba y termina")
     args = parser.parse_args()
 
     try:
@@ -37,7 +38,9 @@ def main() -> int:
 
     agent = TipsterAgent(settings)
     try:
-        if args.once:
+        if args.test_signal:
+            asyncio.run(agent.send_test_signal())
+        elif args.once:
             asyncio.run(agent.run_cycle())
         else:
             asyncio.run(agent.run_forever())
